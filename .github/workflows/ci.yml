@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test deps
+        run: pip install pytest
+
+      - name: Validate SKILL.md
+        run: python3 tests/validate_skill.py .
+
+      - name: Syntax-check scripts
+        run: |
+          python3 -m py_compile scripts/audit.py
+          python3 -m py_compile scripts/env_extract.py
+          python3 -m py_compile tests/validate_skill.py
+
+      - name: Run test suite
+        run: python3 -m pytest tests/ -v
+
+      - name: Sanity-check self-audit (scoped, no CVEs)
+        run: python3 scripts/audit.py . --scoped --skip-cve
