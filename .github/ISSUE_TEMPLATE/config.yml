@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🌐 Tododeia community
+    url: https://tododeia.com
+    about: Join the community, ask questions, share what you're building.
+  - name: 📸 Instagram (@soyenriquerocha)
+    url: https://instagram.com/soyenriquerocha
+    about: Follow for tutorials and updates.
+  - name: 📚 SKILL.md documentation
+    url: https://github.com/Hainrixz/all-deploy/blob/main/SKILL.md
+    about: Full phases, hard rules, and workflow reference before filing a bug.

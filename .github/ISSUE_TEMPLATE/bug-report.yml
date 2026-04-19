@@ -1,0 +1,110 @@
+name: "🐛 Bug report / Reporte de bug"
+description: Something in /all-deploy isn't working as expected. / Algo en /all-deploy no funciona como esperas.
+title: "[Bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. / Gracias por tomarte el tiempo de reportar un bug.
+
+        **Before filing / Antes de abrir el issue:**
+        - Check you're on the latest version (`cd ~/.claude/skills/all-deploy && git pull`) / Verifica que tengas la última versión.
+        - Search existing issues — your bug might already be tracked. / Busca issues existentes — tu bug podría ya estar registrado.
+
+  - type: input
+    id: skill-version
+    attributes:
+      label: Skill version / Versión del skill
+      description: Output of `cd ~/.claude/skills/all-deploy && git log -1 --format='%h %s'`
+      placeholder: "e.g., b411420 docs(license): attribute to Enrique Rocha / Tododeia"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Which phase failed? / ¿Qué fase falló?
+      options:
+        - "Phase 0 — Prerequisites"
+        - "Phase 1 — Detect"
+        - "Phase 2 — Audit"
+        - "Phase 3 — Target selection"
+        - "Phase 3.5 — CLI auth"
+        - "Phase 4 — Execute (preview)"
+        - "Phase 4.5 — Preview health check"
+        - "Phase 5 — Prod promotion"
+        - "Phase 6 — Post-deploy"
+        - "Mode selection (before Phase 0)"
+        - "Run locally mode"
+        - "Not sure / No estoy seguro"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: target
+    attributes:
+      label: Deploy target / Target de deploy
+      options:
+        - Vercel
+        - Railway
+        - Docker + SSH VPS
+        - cloudflared tunnel
+        - Run locally (no target)
+        - Not yet chosen / Aún no elegido
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened? / ¿Qué pasó?
+      description: Describe the actual behavior. / Describe el comportamiento actual.
+      placeholder: "/all-deploy auto started, ran audit successfully, but failed at Phase 4 preview deploy because..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect? / ¿Qué esperabas?
+      placeholder: "I expected the preview URL to appear in the output..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / Pasos para reproducir
+      placeholder: |
+        1. `/all-deploy auto` on a fresh Next.js 15 project
+        2. Audit passed clean
+        3. Phase 4 ran `vercel` which exited 0 but no URL was printed
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / Logs relevantes
+      description: Paste any error output. **Redact any secrets before pasting.** / Pega el output de error. **Redacta cualquier secreto antes de pegar.**
+      render: shell
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "macOS 14.5 / Ubuntu 22.04 / WSL2 on Windows 11"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation / Confirmación
+      options:
+        - label: I have redacted secrets from the logs. / He redactado los secretos de los logs.
+          required: true
+        - label: I have checked existing issues. / He revisado los issues existentes.
+          required: true

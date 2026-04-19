@@ -1,0 +1,74 @@
+name: "🎯 New target request / Solicitud de target nuevo"
+description: Request a new deploy target (Netlify, Fly, Modal, Render, etc.). / Solicita un target de deploy nuevo.
+title: "[Target] "
+labels: ["enhancement", "new-target"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a new deploy target! / ¡Gracias por proponer un target nuevo!
+
+        v1 ships with Vercel, Railway, Docker+SSH, and cloudflared. Good candidates for v2 include Netlify, Fly.io, Modal, Render, Hugging Face Spaces, Cloudflare Pages/Workers, and GitHub Pages — but the community decides what lands first.
+
+  - type: input
+    id: target-name
+    attributes:
+      label: Target name / Nombre del target
+      placeholder: "e.g., Fly.io, Modal, Netlify"
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: What kind of project is this best for? / ¿Para qué tipo de proyecto es ideal?
+      placeholder: "Modal is best for Python GPU workloads (ML inference, long-running compute)..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: cli
+    attributes:
+      label: CLI + auth flow / CLI y flujo de auth
+      description: What command installs the CLI? How does the user authenticate?
+      placeholder: |
+        Install: `brew install flyctl` (or `curl -L https://fly.io/install.sh | sh`)
+        Auth: `flyctl auth login` (opens browser)
+        Check: `flyctl auth whoami`
+    validations:
+      required: true
+
+  - type: textarea
+    id: deploy-flow
+    attributes:
+      label: Preview + prod deploy flow / Flujo de preview y prod
+      description: What commands does a user run for a first-time preview and prod promotion?
+      placeholder: |
+        First-time: `flyctl launch` (interactive, creates fly.toml)
+        Subsequent preview: ... does Fly have previews?
+        Prod: `flyctl deploy`
+        Rollback: `flyctl releases rollback <version>`
+        Logs: `flyctl logs`
+
+  - type: textarea
+    id: env-delivery
+    attributes:
+      label: How are env vars delivered? / ¿Cómo se entregan las env vars?
+      placeholder: "flyctl secrets set KEY=value — one at a time, or batched via --file"
+
+  - type: textarea
+    id: gotchas
+    attributes:
+      label: Known gotchas / Problemas comunes
+      description: Anything that trips up first-time users of this target?
+      placeholder: "Fly apps scale to zero by default on Hobby — first request after idle takes 10s. Requires a `fly.toml` at repo root..."
+
+  - type: checkboxes
+    id: volunteer
+    attributes:
+      label: Can you help write the reference? / ¿Puedes ayudar a escribir la referencia?
+      description: References live at `references/targets/<target>.md` and follow the existing structure (prereqs → env → preview → health check → prod → rollback + logs). Under ~200 lines.
+      options:
+        - label: Yes, I'll submit a PR. / Sí, mandaré un PR.
+        - label: I can review a PR if someone else writes it. / Puedo revisar un PR si alguien más lo escribe.
+        - label: Just requesting — I don't have bandwidth to contribute code. / Solo solicitando — no tengo tiempo para contribuir código.
