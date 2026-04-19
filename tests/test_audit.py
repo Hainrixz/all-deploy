@@ -101,10 +101,11 @@ def test_envrc_is_allowed(tmp_path: Path) -> None:
 def test_hardcoded_github_token_is_critical(tmp_path: Path) -> None:
     """A GitHub PAT in source should fire secret.GitHub_PAT_classic."""
     _git_init(tmp_path)
-    # 36 hex-ish chars after ghp_ — matches the pattern
-    (tmp_path / "app.js").write_text(
-        'const token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";\n'
-    )
+    # Assemble the fake PAT at runtime so THIS test file doesn't itself
+    # contain a literal match — otherwise the skill's own self-audit step
+    # in CI would flag tests/test_audit.py as leaking a token.
+    fake_pat = "gh" + "p_" + "abcdefghijklmnopqrstuvwxyz0123456789"
+    (tmp_path / "app.js").write_text(f'const token = "{fake_pat}";\n')
     _git_commit(tmp_path)
     result = run_audit(tmp_path, "--scoped", "--skip-cve")
     codes = {f["check"] for f in _findings(result.stdout)}
