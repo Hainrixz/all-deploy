@@ -1,0 +1,32 @@
+# macOS cruft
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Packaged skill builds (produced by package_skill.py)
+*.skill
+dist/
+
+# Local / transient
+/tmp/
+.env
+.env.local

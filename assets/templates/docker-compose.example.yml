@@ -1,0 +1,82 @@
+# docker-compose.example.yml — starting point for a docker-vps deploy.
+# Copy to docker-compose.yml, customize for your project.
+#
+# Patterns:
+#   - App service (web or worker).
+#   - Optional Postgres + Redis dependencies.
+#   - Env vars sourced from a .env file next to this file (never committed).
+#   - Restart policy + healthcheck so the stack survives reboots and bad deploys.
+
+services:
+  app:
+    # Build from local Dockerfile, or switch to image: for prebuilt-image deploys.
+    build: .
+    # image: ghcr.io/<user>/<repo>:latest
+
+    restart: unless-stopped
+
+    ports:
+      - "3000:3000"   # host:container — change if your app uses 8000 (FastAPI) etc.
+
+    environment:
+      # Pass values from .env via variable substitution.
+      # Add every key required by your app. Never hardcode secrets here.
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # - STRIPE_SECRET=${STRIPE_SECRET}
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+    healthcheck:
+      # Language built-ins — no curl/wget needed in slim base images.
+      # Node (default below): probe /health and exit 0 on 2xx, 1 otherwise.
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"]
+      # Python alternative — uncomment and adjust port/path:
+      # test: ["CMD", "python", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=3).status < 400 else 1)"]
+      # If you install curl into your image, the simpler form works too:
+      # test: ["CMD", "curl", "-fsS", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+volumes:
+  db-data:
+  redis-data:
+
+# ----- Worker-only variant -----
+# If your service is a background worker (no HTTP), remove the `ports:` and
+# `healthcheck:` blocks and replace the app service's implicit CMD with
+# something like:
+#   command: celery -A app.tasks worker --loglevel=info
+#
+# ----- Behind a reverse proxy -----
+# For HTTPS, put this stack behind Caddy or Traefik on the same Docker network.
+# Don't expose app's port 3000 to the internet directly; only the proxy's 443.

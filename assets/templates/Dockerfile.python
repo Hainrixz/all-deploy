@@ -1,0 +1,78 @@
+# Dockerfile.python — starting point for a Python web/worker service.
+# Tweak: PYTHON_VERSION, start command.
+#
+# This template uses uv. It requires uv.lock in your project — generate one
+# with `uv lock` locally before building. If you use pip/poetry instead, see
+# the commented alternatives at the bottom and edit accordingly.
+
+ARG PYTHON_VERSION=3.12
+
+# ---- Stage 1: build ----
+FROM python:${PYTHON_VERSION}-slim AS build
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+
+# System deps commonly required (build-essential for native wheels).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential \
+ && rm -rf /var/lib/apt/lists/*
+
+# Install uv.
+RUN pip install --no-cache-dir uv
+
+WORKDIR /app
+
+# Resolve deps from lockfile for reproducibility, cache-friendly layering.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+# ---- Stage 2: runtime ----
+FROM python:${PYTHON_VERSION}-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/app/.venv/bin:${PATH}"
+
+WORKDIR /app
+
+# Copy the resolved virtualenv from the build stage.
+COPY --from=build /app/.venv /app/.venv
+
+# Copy app source.
+COPY . .
+
+# Drop root.
+RUN groupadd --system --gid 1001 app \
+ && useradd --system --uid 1001 --gid app app \
+ && chown -R app:app /app
+USER app
+
+EXPOSE 8000
+
+# Bind 0.0.0.0, read PORT from the host. Adjust "main:app" for your layout.
+ENV PORT=8000
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
+
+# ---------------------------------------------------------------
+# ALTERNATE: pip + requirements.txt
+# Remove the uv lines above and swap in:
+#
+#   COPY requirements.txt ./
+#   RUN pip install --no-cache-dir -r requirements.txt
+#
+# Then in stage 2, skip the .venv copy and rely on system site-packages.
+#
+# ALTERNATE: Poetry
+#
+#   RUN pip install --no-cache-dir poetry
+#   COPY pyproject.toml poetry.lock ./
+#   RUN poetry config virtualenvs.create false && poetry install --no-dev
+#
+# ALTERNATE: worker (no HTTP)
+# Replace the CMD with:
+#   CMD ["celery", "-A", "app.tasks", "worker", "--loglevel=info"]
+# ---------------------------------------------------------------
