@@ -8,9 +8,9 @@
     <rect x="52" width="35" height="20" fill="#DA7758"/>
   </g>
   <g fill="#F2F3EE" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="110" transform="scale(.1)">
-    <text x="260" y="140">license</text>
+    <text x="260" y="140" textLength="376" lengthAdjust="spacingAndGlyphs">license</text>
   </g>
   <g fill="#000000" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="110" font-weight="bold" transform="scale(.1)">
-    <text x="695" y="140">MIT</text>
+    <text x="695" y="140" textLength="207" lengthAdjust="spacingAndGlyphs">MIT</text>
   </g>
 </svg>

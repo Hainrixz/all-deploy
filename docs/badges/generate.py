@@ -59,6 +59,13 @@ def badge(label, message, message_bg=CORAL, message_fg=INK):
     lx = lw * 10 / 2
     mx = (lw + mw / 2) * 10
     alt = f'{label}: {message}'
+    # An SVG used as an image cannot load a webfont, so the text renders in
+    # whatever the *viewer* has installed. Segment widths here are computed
+    # from Verdana metrics, so a wider fallback (Courier, say) overflows the
+    # pill. textLength pins each run to the width we reserved for it, which
+    # makes the badge render correctly regardless of the font that resolves.
+    ltl = round(text_width(label) * 10)
+    mtl = round(text_width(message) * 10)
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{total}" \
 height="{HEIGHT}" role="img" aria-label="{esc(alt)}">
   <title>{esc(alt)}</title>
@@ -72,12 +79,14 @@ height="{HEIGHT}" role="img" aria-label="{esc(alt)}">
   <g fill="{CREAM}" text-anchor="middle" \
 font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="110" \
 transform="scale(.1)">
-    <text x="{lx:.0f}" y="140">{esc(label)}</text>
+    <text x="{lx:.0f}" y="140" textLength="{ltl}" \
+lengthAdjust="spacingAndGlyphs">{esc(label)}</text>
   </g>
   <g fill="{message_fg}" text-anchor="middle" \
 font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="110" \
 font-weight="bold" transform="scale(.1)">
-    <text x="{mx:.0f}" y="140">{esc(message)}</text>
+    <text x="{mx:.0f}" y="140" textLength="{mtl}" \
+lengthAdjust="spacingAndGlyphs">{esc(message)}</text>
   </g>
 </svg>
 '''
