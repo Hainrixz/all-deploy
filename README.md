@@ -7,8 +7,8 @@
 **Takes any project from "it runs on my laptop" to "it's live on the internet" — and refuses to skip the safety audit on the way.**
 
 [![CI](https://github.com/Hainrixz/all-deploy/actions/workflows/ci.yml/badge.svg)](https://github.com/Hainrixz/all-deploy/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-DA7758)](LICENSE)
-[![Claude Code skill](https://img.shields.io/badge/Claude%20Code-skill-DA7758)](https://claude.com/claude-code)
+[![License: MIT](docs/badges/license.svg)](LICENSE)
+[![Claude Code skill](docs/badges/claude-code-skill.svg)](https://claude.com/claude-code)
 
 🌐 [tododeia.com](https://tododeia.com) · 📸 [@soyenriquerocha](https://instagram.com/soyenriquerocha) · 📦 [Latest release](https://github.com/Hainrixz/all-deploy/releases/latest)
 
