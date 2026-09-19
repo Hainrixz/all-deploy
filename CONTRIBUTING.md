@@ -12,7 +12,9 @@ Thanks for your interest in contributing. This skill is part of the [Tododeia](h
 
 | Type | Where | Size |
 |---|---|---|
-| **Add a deploy target** (Netlify, Fly, Modal, Render, HF Spaces, Cloudflare Pages) | `references/targets/<target>.md` | ~150–200 lines |
+| **Add a deploy target** (Fly, Modal, HF Spaces, Deno Deploy, Surge) | `references/targets/<target>.md` | ~150–200 lines |
+| **Add a static-site check** (a new way a page breaks once it's live) | `scripts/static_check.py` + `references/static-sites.md` | ~30 lines + a fixture |
+| **Refresh a free-tier limit or licence term** (they drift constantly) | `references/static-hosting.md` + the target playbook | 1–2 lines |
 | **Extend secret patterns** (new API key format — Anthropic, OpenAI, etc.) | `scripts/audit.py` `SECRET_PATTERNS` dict | 1–2 lines + a test fixture |
 | **Improve framework detection** | `references/project-types.md` + `SKILL.md` Phase 1 | 1 table row |
 | **Improve Spanish copy in the README or CONTRIBUTING** | `README.md`, `CONTRIBUTING.md` | varies |
@@ -41,6 +43,12 @@ python3 -m py_compile scripts/audit.py scripts/env_extract.py
 
 # Run audit fixtures:
 python3 -m pytest tests/ -v
+
+# The repo audits itself (this is what catches a fake token in a doc):
+python3 scripts/audit.py . --scoped --skip-cve
+
+# The Cowork plugin carries copies of three files — check they haven't drifted:
+python3 scripts/sync_cowork_plugin.py --check
 ```
 
 CI runs the same checks on every pull request (see `.github/workflows/ci.yml`).
@@ -60,7 +68,13 @@ The target reference is a playbook. Follow the structure used by the four existi
 
 Keep it under ~200 lines. Don't wrap the target CLI in a custom script — document the real command so users can read and verify (Hard Rule 5).
 
-Also update `references/project-types.md` and the target-selection rubric in `SKILL.md` so the new target gets ranked when signals match.
+Also update `references/project-types.md` and the target-selection rubric in `SKILL.md` so the new target gets ranked when signals match, and add the file to `REQUIRED_FILES` in `tests/validate_skill.py`.
+
+**For a static target**, three extra things, all of which the existing static playbooks do:
+
+- **Quote the licence terms, don't summarise them.** Whether a free plan allows commercial use is the single most consequential fact about it, and paraphrase loses the distinctions that matter. Add a row to the commercial-use matrix in `references/static-hosting.md`.
+- **State where preview → prod doesn't hold.** GitHub Pages has no preview; a drag-and-drop upload is production. Say so rather than implying a gate that isn't there.
+- **Document the no-CLI browser route** if one exists. Most people publishing a web page do not have a terminal, and Hard Rule 4 means the skill can't install one for them.
 
 ### Extending audit checks
 
@@ -89,7 +103,8 @@ Before opening a PR, confirm:
 - [ ] `python3 -m pytest tests/` passes.
 - [ ] You've updated `SKILL.md`, the relevant reference, and any impacted template — all three stay in sync.
 - [ ] No hardcoded paths (use skill-relative references).
-- [ ] No secrets in commits (check `git log -p` before pushing).
+- [ ] No secrets in commits (check `git log -p` before pushing). CI scans every tracked file with all 16 patterns — obfuscate example tokens the way `tests/test_audit.py` does.
+- [ ] `python3 scripts/sync_cowork_plugin.py --check` passes.
 - [ ] README / CONTRIBUTING updated if behavior changes.
 
 ### Commit message convention
@@ -117,7 +132,9 @@ Gracias por tu interés en contribuir. Este skill es parte de la comunidad [Todo
 
 | Tipo | Dónde | Tamaño |
 |---|---|---|
-| **Agregar un target de deploy** (Netlify, Fly, Modal, Render, HF Spaces, Cloudflare Pages) | `references/targets/<target>.md` | ~150–200 líneas |
+| **Agregar un target de deploy** (Fly, Modal, HF Spaces, Deno Deploy, Surge) | `references/targets/<target>.md` | ~150–200 líneas |
+| **Agregar una revisión de sitio estático** (otra forma en que una página se rompe al publicarla) | `scripts/static_check.py` + `references/static-sites.md` | ~30 líneas + un fixture |
+| **Actualizar un límite de plan gratis o un término de licencia** (cambian todo el tiempo) | `references/static-hosting.md` + el playbook del target | 1–2 líneas |
 | **Extender patrones de secretos** (nuevo formato de API key) | `scripts/audit.py` dict `SECRET_PATTERNS` | 1–2 líneas + un fixture |
 | **Mejorar detección de frameworks** | `references/project-types.md` + `SKILL.md` Fase 1 | 1 fila de tabla |
 | **Mejorar la copia en español del README o CONTRIBUTING** | `README.md`, `CONTRIBUTING.md` | variable |
@@ -146,6 +163,12 @@ python3 -m py_compile scripts/audit.py scripts/env_extract.py
 
 # Correr fixtures del audit:
 python3 -m pytest tests/ -v
+
+# El repo se audita a sí mismo (esto es lo que atrapa un token falso en un doc):
+python3 scripts/audit.py . --scoped --skip-cve
+
+# El plugin de Cowork lleva copias de tres archivos — revisa que no se hayan separado:
+python3 scripts/sync_cowork_plugin.py --check
 ```
 
 CI corre los mismos checks en cada pull request (ver `.github/workflows/ci.yml`).
@@ -165,7 +188,13 @@ La referencia del target es un playbook. Sigue la estructura de las cuatro exist
 
 Mantén bajo ~200 líneas. No envuelvas el CLI en un script propio — documenta el comando real para que los usuarios puedan leerlo y verificarlo (Regla dura 5).
 
-También actualiza `references/project-types.md` y el ranking de selección de target en `SKILL.md` para que el nuevo target aparezca cuando las señales coincidan.
+También actualiza `references/project-types.md` y el ranking de selección de target en `SKILL.md` para que el nuevo target aparezca cuando las señales coincidan, y agrega el archivo a `REQUIRED_FILES` en `tests/validate_skill.py`.
+
+**Si es un target estático**, tres cosas más, que todos los playbooks estáticos ya hacen:
+
+- **Cita los términos de licencia, no los resumas.** Si un plan gratis permite uso comercial es el dato más consecuente de todos, y parafrasear pierde justo las distinciones que importan. Agrega una fila a la matriz de uso comercial en `references/static-hosting.md`.
+- **Di dónde no se cumple preview → prod.** GitHub Pages no tiene preview; una subida por arrastrar-y-soltar es producción. Dilo en vez de sugerir una compuerta que no existe.
+- **Documenta la ruta por navegador sin CLI** si existe. La mayoría de la gente que publica una página web no tiene terminal, y la Regla dura 4 impide que el skill le instale uno.
 
 ### Extender checks del audit
 
@@ -194,7 +223,8 @@ Antes de abrir un PR, confirma:
 - [ ] `python3 -m pytest tests/` pasa.
 - [ ] Actualizaste `SKILL.md`, la referencia relevante, y el template afectado — los tres quedan en sync.
 - [ ] No hay paths hardcodeados (usa referencias relativas al skill).
-- [ ] No hay secretos en los commits (revisa `git log -p` antes de pushear).
+- [ ] No hay secretos en los commits (revisa `git log -p` antes de pushear). CI escanea cada archivo trackeado con los 16 patrones — ofusca los tokens de ejemplo como lo hace `tests/test_audit.py`.
+- [ ] `python3 scripts/sync_cowork_plugin.py --check` pasa.
 - [ ] README / CONTRIBUTING actualizado si el comportamiento cambia.
 
 ### Convención de commits

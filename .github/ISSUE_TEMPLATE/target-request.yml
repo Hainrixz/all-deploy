@@ -8,7 +8,9 @@ body:
       value: |
         Thanks for proposing a new deploy target! / ¡Gracias por proponer un target nuevo!
 
-        v1 ships with Vercel, Railway, Docker+SSH, and cloudflared. Good candidates for v2 include Netlify, Fly.io, Modal, Render, Hugging Face Spaces, Cloudflare Pages/Workers, and GitHub Pages — but the community decides what lands first.
+        Currently shipping: Cloudflare Pages, Netlify, GitHub Pages, Render, Vercel, Railway, Docker+SSH, and cloudflared. Good remaining candidates include Fly.io, Modal, Hugging Face Spaces, Deno Deploy, Surge and Cloudflare Workers — but the community decides what lands first.
+
+        If it's a **static** host, please include its commercial-use terms (quoted, not summarised), its free-tier limits, and whether it has a browser upload path for people with no terminal. Those three decide whether it's usable by the audience that asks for free hosting.
 
   - type: input
     id: target-name

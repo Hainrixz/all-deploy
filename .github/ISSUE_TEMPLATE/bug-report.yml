@@ -26,10 +26,12 @@ body:
     attributes:
       label: Which phase failed? / ¿Qué fase falló?
       options:
+        - "Phase 0.0 — Project class (app vs static)"
         - "Phase 0 — Prerequisites"
         - "Phase 1 — Detect"
         - "Phase 2 — Audit"
         - "Phase 3 — Target selection"
+        - "Phase 3.2 — Git decision (static, no repo)"
         - "Phase 3.5 — CLI auth"
         - "Phase 4 — Execute (preview)"
         - "Phase 4.5 — Preview health check"
@@ -46,6 +48,10 @@ body:
     attributes:
       label: Deploy target / Target de deploy
       options:
+        - Cloudflare Pages
+        - Netlify
+        - GitHub Pages
+        - Render
         - Vercel
         - Railway
         - Docker + SSH VPS

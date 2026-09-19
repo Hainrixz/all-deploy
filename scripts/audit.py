@@ -9,6 +9,8 @@ print but do not fail the audit.
 Usage:
     audit.py <project-path> [--json] [--scoped] [--skip-remote]
                             [--skip-cve] [--allow-dirty]
+                            [--profile {auto,app,static}] [--publish-dir DIR]
+                            [--target NAME]
 
 Flags:
     --scoped       Run-locally mode: only secrets, start command, port binding.
@@ -16,6 +18,17 @@ Flags:
     --skip-cve     Skip npm audit / pip-audit (network-dependent).
     --allow-dirty  Don't block on uncommitted changes.
     --json         Emit JSON report instead of human-readable.
+    --profile      app (default pipeline) or static (a web page, no server).
+                   auto detects: a folder with index.html and no app manifest
+                   is static. Existing projects always resolve to app.
+    --publish-dir  The folder that actually gets uploaded (., dist, _site,
+                   public, build, out). Implies --profile static.
+    --target       Host name. Only `github-pages` changes which checks run.
+
+The static profile skips every check that assumes a server, a dependency tree
+or a git remote, and runs scripts/static_check.py instead. `--skip-remote` is
+a no-op there: the remote check is off by default and only turns on for
+--target github-pages, which genuinely needs one.
 
 Never prints secret values. Reports locations and pattern names only.
 """
@@ -86,12 +99,74 @@ IGNORE_DIRS = {
     "coverage", ".pytest_cache", ".mypy_cache", ".ruff_cache",
 }
 
+# A project with any of these is an app, never a static page — this is what
+# keeps a Vite or Next repo (which also has an index.html) on the app pipeline.
+APP_MANIFESTS = (
+    "package.json", "pyproject.toml", "requirements.txt", "Pipfile",
+    "Dockerfile", "docker-compose.yml", "Procfile", "go.mod", "Gemfile",
+)
+
+# Where an index.html tends to live, in the order we look for it.
+PUBLISH_CANDIDATES = (".", "dist", "_site", "public", "build", "out", "site")
+
 BINARY_EXTS = {
     ".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip", ".tar", ".gz",
     ".woff", ".woff2", ".ttf", ".otf", ".ico", ".webp", ".mp4", ".mov",
     ".mp3", ".wav", ".avi", ".bin", ".so", ".dylib", ".dll", ".exe",
     ".jar", ".war", ".class", ".pyc",
 }
+
+
+def _html_in(directory: Path) -> str:
+    """"index" if the folder holds an index.html, "other" if it holds some
+    other HTML file, "" if neither.
+
+    The index lookup is case-insensitive on purpose: a page saved as
+    Index.html should still route into the static profile, where
+    static_check.py flags the capitalisation properly. And a folder whose
+    page is called inicio.html is still a website — that misnaming is the
+    single most common reason a first deploy 404s, so it has to be detected,
+    not skipped."""
+    if not directory.is_dir():
+        return ""
+    found = ""
+    try:
+        for entry in os.scandir(directory):
+            if not entry.is_file():
+                continue
+            lowered = entry.name.lower()
+            if lowered == "index.html":
+                return "index"
+            if lowered.endswith((".html", ".htm")):
+                found = "other"
+    except OSError:
+        return ""
+    return found
+
+
+def detect_profile(project: Path) -> str:
+    """Deliberately narrow: anything with an app manifest stays on the app
+    pipeline, so no existing project changes behaviour."""
+    if any((project / manifest).exists() for manifest in APP_MANIFESTS):
+        return "app"
+    for candidate in PUBLISH_CANDIDATES:
+        if _html_in(project / candidate):
+            return "static"
+    return "app"
+
+
+def resolve_publish_dir(project: Path, explicit: Optional[str]) -> Path:
+    if explicit:
+        path = Path(explicit)
+        return (path if path.is_absolute() else (project / explicit)).resolve()
+    fallback = None
+    for candidate in PUBLISH_CANDIDATES:
+        kind = _html_in(project / candidate)
+        if kind == "index":
+            return (project / candidate).resolve()
+        if kind == "other" and fallback is None:
+            fallback = (project / candidate).resolve()
+    return fallback or project.resolve()
 
 
 @dataclass
@@ -111,16 +186,25 @@ class Auditor:
         skip_remote: bool,
         skip_cve: bool,
         allow_dirty: bool,
+        profile: str = "app",
+        publish_dir: Optional[Path] = None,
+        target: str = "generic",
     ):
         self.project = project.resolve()
         self.scoped = scoped
         self.skip_remote = skip_remote
         self.skip_cve = skip_cve
         self.allow_dirty = allow_dirty
+        self.profile = profile
+        self.publish_dir = (publish_dir or self.project).resolve()
+        self.target = (target or "generic").lower()
         self.findings: List[Finding] = []
         self._tracked_cache: Optional[List[Path]] = None
+        self._secret_skip: set = set()
 
     def run(self) -> None:
+        if self.profile == "static":
+            return self.run_static()
         self.check_secrets()
         self.check_start_command()
         self.check_port_binding()
@@ -136,6 +220,65 @@ class Auditor:
             self.check_git_remote()
         if not self.skip_cve:
             self.check_known_cves()
+
+    def run_static(self) -> None:
+        """A web page, not a service. Everything that assumes a dependency
+        tree, a start command, a port or a git remote is off — those checks
+        emit false criticals on a plain folder of HTML, which is exactly what
+        kept this audience out."""
+        self.run_static_checks()
+        self.check_secrets()
+        # GitHub Pages is the one static target that genuinely needs a remote.
+        if self.target == "github-pages" and not self.skip_remote:
+            self.check_git_remote()
+
+    def run_static_checks(self) -> None:
+        script = Path(__file__).resolve().parent / "static_check.py"
+        if not script.exists():
+            # Hard Rule 1: a check that cannot run is a block, not a pass.
+            self.findings.append(Finding(
+                "critical", "static.checks.unavailable",
+                f"{script.name} is missing from the skill directory — the static "
+                "checks could not run.",
+                fix="Re-install the skill: cd ~/.claude/skills/all-deploy && git pull",
+            ))
+            return
+        cmd = [
+            sys.executable, str(script), str(self.publish_dir),
+            "--json", "--target", self.target,
+        ]
+        if self.scoped:
+            cmd.append("--scoped")
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            payload = json.loads(result.stdout or "[]")
+        except (OSError, json.JSONDecodeError) as exc:
+            self.findings.append(Finding(
+                "critical", "static.checks.unavailable",
+                f"The static checks failed to run ({type(exc).__name__}).",
+                fix=f"Run it directly to see why: python3 {script} {self.publish_dir}",
+            ))
+            return
+        try:
+            prefix = self.publish_dir.relative_to(self.project).as_posix()
+        except ValueError:
+            prefix = ""
+        for raw in payload:
+            location = raw.get("location")
+            if location and prefix not in ("", ".") and not location.startswith("/"):
+                location = f"{prefix}/{location}"
+            finding = Finding(
+                severity=raw.get("severity", "warn"),
+                check=raw.get("check", "static.unknown"),
+                message=raw.get("message", ""),
+                fix=raw.get("fix"),
+                location=location,
+            )
+            self.findings.append(finding)
+            # Don't report the same key twice — the static message is the more
+            # useful one because it explains that a private repo doesn't help.
+            if finding.check.startswith("static.secret.") and raw.get("location"):
+                self._secret_skip.add((self.publish_dir / raw["location"]).resolve())
 
     def _tracked_files(self) -> List[Path]:
         """Git-tracked files only. Returns [] if not a git repo.
@@ -203,6 +346,8 @@ class Auditor:
             # Skip the legitimately-tracked env files from content-scan too —
             # .envrc contains shell code that looks like many things.
             if f.name in ENV_ALLOWLIST:
+                continue
+            if self._secret_skip and f.resolve() in self._secret_skip:
                 continue
             try:
                 content = f.read_text(errors="ignore")
@@ -423,9 +568,10 @@ class Auditor:
                 ))
 
     def check_port_binding(self) -> None:
-        tracked = self._tracked_files()
+        # _scannable_files, not _tracked_files: in scoped/local mode the
+        # project often has no git yet, and this check would silently no-op.
         source_files = [
-            f for f in tracked
+            f for f in self._scannable_files()
             if f.suffix in {".js", ".ts", ".tsx", ".jsx", ".py", ".mjs", ".cjs"}
         ]
         has_localhost_listen = False
@@ -452,11 +598,25 @@ class Auditor:
         # otherwise a fresh `.env.example` the audit just asked the user to
         # create would fail the next audit run.
         try:
+            inside = subprocess.run(
+                ["git", "-C", str(self.project), "rev-parse", "--is-inside-work-tree"],
+                capture_output=True, text=True,
+            )
+        except FileNotFoundError:
+            return
+        if inside.returncode != 0 or inside.stdout.strip() != "true":
+            # Not a git repo at all. "Dirty" is meaningless here — reporting it
+            # was a false critical that blocked every project without a repo.
+            return
+        try:
             result = subprocess.run(
                 ["git", "-C", str(self.project), "diff-index", "--quiet", "HEAD", "--"],
                 capture_output=True,
             )
         except FileNotFoundError:
+            return
+        if result.returncode not in (0, 1):
+            # 128 = no commits yet (HEAD doesn't resolve). Nothing to compare.
             return
         if result.returncode == 0:
             # Tracked changes clean. Still warn about untracked files.
@@ -599,6 +759,8 @@ def emit_report(findings: List[Finding], as_json: bool) -> None:
         print(f"{len(warns)} warning(s) (non-blocking):\n")
         for f in warns:
             print(f"  [{f.check}] {f.message}")
+            if f.location:
+                print(f"      at:  {f.location}")
             if f.fix:
                 for line in f.fix.splitlines():
                     print(f"      fix: {line}")
@@ -613,6 +775,12 @@ def main() -> None:
     parser.add_argument("--skip-remote", action="store_true", help="Don't require git remote")
     parser.add_argument("--skip-cve", action="store_true", help="Skip npm audit / pip-audit")
     parser.add_argument("--allow-dirty", action="store_true", help="Don't block on uncommitted changes")
+    parser.add_argument("--profile", choices=("auto", "app", "static"), default="auto",
+                        help="Audit profile. auto = detect (default)")
+    parser.add_argument("--publish-dir", default=None,
+                        help="Folder that gets uploaded (implies --profile static)")
+    parser.add_argument("--target", default="generic",
+                        help="Target host name; only 'github-pages' changes checks")
     args = parser.parse_args()
 
     project = Path(args.project_path)
@@ -620,12 +788,20 @@ def main() -> None:
         print(f"Error: {project} does not exist.", file=sys.stderr)
         sys.exit(2)
 
+    profile = args.profile
+    if profile == "auto":
+        profile = "static" if (args.publish_dir or detect_profile(project) == "static") else "app"
+    publish_dir = resolve_publish_dir(project, args.publish_dir) if profile == "static" else None
+
     auditor = Auditor(
         project=project,
         scoped=args.scoped,
         skip_remote=args.skip_remote,
         skip_cve=args.skip_cve,
         allow_dirty=args.allow_dirty,
+        profile=profile,
+        publish_dir=publish_dir,
+        target=args.target,
     )
     auditor.run()
     emit_report(auditor.findings, as_json=args.json)

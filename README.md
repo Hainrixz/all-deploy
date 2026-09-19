@@ -4,7 +4,7 @@
 
 # `/all-deploy`
 
-**Takes any project from "it runs on my laptop" to "it's live on the internet" — and refuses to skip the safety audit on the way.**
+**Takes any website, app, API or agent from "it runs on my laptop" to "it's live on the internet" — and refuses to skip the safety audit on the way.**
 
 [![CI](https://github.com/Hainrixz/all-deploy/actions/workflows/ci.yml/badge.svg)](https://github.com/Hainrixz/all-deploy/actions/workflows/ci.yml)
 [![License: MIT](docs/badges/license.svg)](LICENSE)
@@ -45,13 +45,15 @@ Deploying is rarely hard because the commands are hard. It's hard because the co
 
 `/all-deploy` closes that gap. It reads your project, blocks on the things that actually break deploys, picks the host that fits, and only promotes to production after a preview URL has answered with a real HTTP status.
 
+**And it covers plain web pages, not just apps.** If you have a folder with `index.html` in it and no idea where to put it, that's a first-class path: no git repo required, four free hosts with their real limits and licence terms laid out, and a set of checks aimed squarely at the things that break a page *after* it goes live. There's also a [companion skill](cowork-plugin/) for that case with no terminal at all.
+
 ### What it does
 
 One command inside Claude Code walks the same path, phases 0 through 6, every time:
 
 | Phase | What happens |
 |---|---|
-| **0 · Prerequisites** | Confirms you're in a git repo, checks for a remote, and stops early if the project isn't Node or Python (v1's supported ecosystems). |
+| **0 · Class + prerequisites** | Decides first whether this is an **app** or a **static site** — a folder of HTML is neither Node nor Python, and used to get bounced for it. Apps need a git repo and a remote; a static site needs neither. |
 | **1 · Detect** | Fingerprints your framework, runtime version, start command, port binding, database dependencies, and any existing deploy config. |
 | **2 · Audit** | Runs a deterministic script over the project. Any *critical* finding halts the run — including in full-auto mode. Warnings print but don't block. |
 | **3 · Target** | Ranks the hosts that fit your project shape and explains why. You pick, or accept the top choice. |
@@ -85,6 +87,7 @@ Prefer a single file? Download `all-deploy.skill` from the [Releases page](https
 | `/all-deploy auto` | Full-auto. Audit → preview → prod, with a 5-second ESC window before prod. |
 | `/all-deploy step` | Step-by-step. Stops for your OK between audit, preview, and prod. Saying `step by step` or `paso a paso` up front does the same. |
 | `/all-deploy local` | Runs the app on your machine instead of deploying it. |
+| `publish my website` · `sube mi página web` | Static-site path: checks the page, compares the free hosts, publishes it. Works with no git repo. |
 | `deploy this` · `ship this` · `push to prod` · `get this online` | Natural language triggers the skill too. |
 
 Spanish phrasing works as well — `/despliega`, `despliega esto`, `ponlo online`, or `corre esto localmente` for local mode.
@@ -114,6 +117,16 @@ This is the part that makes the skill worth using. Findings come in two severiti
 
 When a check fails, you get the fix as a diff first and approve it before anything is written.
 
+**For a static site, a different set of checks runs** — because most of the ones above are meaningless for a folder of HTML, and two of them used to fire as *false* criticals and block the deploy outright. What runs instead:
+
+- **The home page is named `index.html`** — hosts serve that name at `/`, so `mi-pagina.html` 404s at the site root. Critical.
+- **Filename capitalisation.** `<img src="imagenes/foto.png">` when the file is `Imagenes/Foto.PNG` loads on your Mac — its filesystem ignores capitals — and 404s on every host, which run Linux. The images vanish and nothing in any log explains why. Critical, and the reason this check exists: it resolves every reference against a case-folded index of the real filenames rather than calling `Path.exists()`, which on macOS returns `True` for the wrong spelling and would make the check silently useless for exactly the people who need it.
+- **Paths pointing at your own computer** — `file:///Users/...`, `C:\Users\...`. Critical.
+- **A `.env` inside the folder being uploaded** — it would be downloadable at `/.env` the moment the site is live. Critical.
+- **Credentials in served files.** A private repo doesn't help; a static host serves what you give it. Publishable keys (Stripe `pk_`, referrer-restricted Google Maps) are *designed* to be public and only warn — blocking those would train you to ignore the audit.
+- **`.nojekyll`** when the target is GitHub Pages and a folder starts with `_`, which otherwise makes every stylesheet silently 404.
+- **Warnings:** broken references, oversized images, total site size, and a missing `<title>` / description / Open Graph block — without which sharing the link on WhatsApp shows a blank card that reads as broken.
+
 **Git history is scanned separately, by you.** The skill surfaces the command — `trufflehog git file://.` — rather than running it silently, and it never rewrites your history. Removing a secret from past commits is a decision with consequences for everyone who cloned the repo; it isn't something a deploy tool should do on your behalf.
 
 ### What it detects
@@ -127,6 +140,8 @@ When a check fails, you get the fix as a diff first and approve it before anythi
 | Existing config | `vercel.json`, `railway.toml`, `fly.toml`, `Dockerfile`, `render.yaml` — respected and audited, never silently regenerated |
 | Existing linkage | `.vercel/project.json`, `railway.toml` project field — re-deploys to the same project rather than creating a new one |
 
+For a static site it detects the one field that matters most: the **publish directory**, the folder that actually holds `index.html` — `.` for a plain page, `dist/` for Astro or Vite, `public/` for Hugo, `_site/` for Jekyll or Eleventy, `site/` for MkDocs, `build/` for Docusaurus, `out/` for a Next export. Getting this wrong is the most common cause of a site that deploys "successfully" and 404s at `/`.
+
 Two cases where it stops and asks instead of guessing:
 
 - **Monorepos** (`pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `lerna.json`, `workspaces`) — it enumerates the packages and asks which one you mean.
@@ -136,12 +151,26 @@ Two cases where it stops and asks instead of guessing:
 
 | Target | Best for | Rollback story |
 |---|---|---|
+| **Cloudflare Pages** | Static sites — the default pick when anyone is being paid | Dashboard only; there is no CLI rollback and the skill says so |
+| **Netlify** | Static sites needing a contact form; drag-and-drop | Publish a previous deploy from the dashboard, instantly |
+| **GitHub Pages** | Portfolios, docs, demos already on GitHub | `git revert` and push |
+| **Render** | Static sites with low traffic | Dashboard, last two deploys only |
 | **Vercel** | Next.js, Vite, Astro, Remix, Nuxt, SvelteKit, static sites | `vercel rollback` |
 | **Railway** | FastAPI, Flask, Express, Python workers, agent loops, MCP HTTP servers | Redeploy a prior commit — Railway has no first-class rollback, and the skill says so instead of pretending |
 | **Docker + SSH VPS** | Self-hosted, stateful apps, multi-service `docker compose` stacks | Re-tag and restart the prior image |
 | **cloudflared tunnel** | Local dev exposure, quick demos, webhook testing | Stop the tunnel |
 
-More targets (Netlify, Fly, Modal, Cloudflare Pages) are planned — [open an issue](https://github.com/Hainrixz/all-deploy/issues) to vote for yours.
+#### The free-hosting question nobody asks
+
+Before ranking static hosts, the skill asks one thing: **is anyone being paid in connection with this page?**
+
+It matters more than any technical comparison, because two of the five free plans restrict commercial use and one defines it far more broadly than people expect. Vercel's Fair Use Guidelines count *"receiving payment to create, update, or host the site"* as commercial usage — so a client's brochure page is out even if it sells nothing, carries no ads and takes no payments. GitHub Pages bars sites *"primarily directed at facilitating commercial transactions."* Cloudflare Pages, Netlify and Render have no such restriction.
+
+Two more things worth knowing before you pick, both in [`references/static-hosting.md`](references/static-hosting.md) with the quoted terms: Netlify's free plan is a **300-credit monthly budget** — a production deploy costs 15, and when it runs out the site is *paused* with a "Site not available" page — and Render's free static bandwidth is now **5 GB/month**, down from 100 GB.
+
+The hosting is free on all five. **The domain never is** — around $10–15/year, and none of them include one. [`references/custom-domain.md`](references/custom-domain.md) has the DNS records per host.
+
+More targets (Fly, Modal, Hugging Face Spaces) — [open an issue](https://github.com/Hainrixz/all-deploy/issues) to vote for yours.
 
 ### Run it locally instead
 
@@ -195,7 +224,8 @@ ALLOW_DIRTY_TREE: false           # true → skip the clean-HEAD audit check
 
 - **macOS or Linux.** On Windows, install under WSL2.
 - **Git** and **Python 3.8+**.
-- **The CLI for your chosen target** — Vercel, Railway, `cloudflared`, or SSH + Docker. The skill tells you exactly which one is missing and how to install it, then waits.
+- **The CLI for your chosen target** — Vercel, Railway, Wrangler, Netlify, `gh`, `cloudflared`, or SSH + Docker. The skill tells you exactly which one is missing and how to install it, then waits.
+- **For a static site, no CLI at all is required.** Every static target except Render has a complete browser route, and the skill offers it by default when the CLI isn't installed.
 - **Claude Code** — CLI, desktop, web, or an IDE extension.
 
 ### What it deliberately doesn't do
@@ -214,21 +244,26 @@ Being clear about the edges is part of the safety story:
 SKILL.md                    The skill itself — rules, phases, workflow
 scripts/audit.py            The deterministic pre-deploy audit
 scripts/env_extract.py      Scans source for env-var usage
+scripts/static_check.py     The static-site checks; runs standalone too
 references/
   project-types.md          Framework fingerprint table
   audit-checklist.md        Every audit rule, with fix guidance
   env-mapping.md            How env vars move to each target
   agents.md                 Adjustments for four agent shapes
+  static-sites.md           The static project class and its phase changes
+  static-hosting.md         Five free hosts compared, incl. commercial terms
+  custom-domain.md          DNS records per host, apex vs www
   targets/*.md              One playbook per target
+cowork-plugin/              publish-website — the no-terminal companion skill
 assets/templates/           Dockerfiles, compose and .env.example templates
-tests/                      15-test suite, run on every push to main and every PR
+tests/                      35-test suite, run on every push to main and every PR
 ```
 
 ### Contributing
 
 Issues and pull requests are welcome. Good first contributions:
 
-- **Add a target** under `references/targets/` — Netlify, Fly, Modal, Cloudflare Pages, Render.
+- **Add a target** under `references/targets/` — Fly, Modal, Hugging Face Spaces, Deno Deploy, Surge.
 - **Extend the audit** — new secret patterns or checks in `scripts/audit.py`.
 - **Improve detection** in `references/project-types.md`.
 
@@ -248,13 +283,15 @@ Desplegar casi nunca es difícil por los comandos. Es difícil porque los comand
 
 `/all-deploy` cierra ese hueco. Lee tu proyecto, frena ante lo que de verdad rompe despliegues, elige el host que encaja, y solo promueve a producción después de que una URL de preview haya respondido con un status HTTP real.
 
+**Y también sirve para páginas web, no solo para apps.** Si tienes una carpeta con `index.html` y no sabes dónde subirla, ese es un camino de primera clase: no hace falta repo de git, trae cuatro hosts gratis con sus límites y sus términos de licencia reales, y un conjunto de revisiones apuntadas justo a lo que rompe una página *después* de publicarla. Hay además una [skill compañera](cowork-plugin/) para ese caso, sin terminal.
+
 ### Qué hace
 
 Un solo comando dentro de Claude Code recorre el mismo camino, de la fase 0 a la 6, siempre:
 
 | Fase | Qué pasa |
 |---|---|
-| **0 · Prerrequisitos** | Confirma que estás en un repo git, revisa que haya remote, y se detiene temprano si el proyecto no es Node ni Python (los ecosistemas de v1). |
+| **0 · Clase + prerrequisitos** | Primero decide si esto es una **app** o una **página estática** — una carpeta de HTML no es Node ni Python, y antes la rebotaba por eso. Las apps necesitan repo y remote; una página estática no necesita ninguno de los dos. |
 | **1 · Detecta** | Identifica tu framework, versión de runtime, comando de arranque, binding de puerto, dependencias de base de datos y cualquier config de deploy existente. |
 | **2 · Audita** | Corre un script determinista sobre el proyecto. Cualquier hallazgo *crítico* detiene la corrida — también en modo automático. Las advertencias se imprimen pero no bloquean. |
 | **3 · Target** | Ordena los hosts que encajan con tu proyecto y explica por qué. Eliges tú, o aceptas el primero. |
@@ -288,6 +325,7 @@ cd ~/.claude/skills/all-deploy && git pull
 | `/all-deploy auto` | Automático. Audit → preview → prod, con 5 segundos para cancelar con ESC antes de prod. |
 | `/all-deploy step` | Paso a paso. Se detiene por tu OK entre audit, preview y prod. Decir `paso a paso` desde el inicio hace lo mismo. |
 | `/all-deploy local` | Corre la app en tu máquina en vez de desplegarla. |
+| `sube mi página web` · `publica mi página` | Camino de página estática: revisa la página, compara los hosts gratis y la publica. Funciona sin repo de git. |
 | `/despliega` · `despliega esto` · `ponlo online` · `corre esto localmente` | El lenguaje natural también dispara el skill. |
 
 El inglés también funciona — `deploy this`, `ship this`, `push to prod`, `get this online`.
@@ -317,6 +355,16 @@ Esta es la parte que hace que el skill valga la pena. Los hallazgos vienen en do
 
 Cuando algo falla, primero ves el arreglo como diff y lo apruebas antes de que se escriba nada.
 
+**Para una página estática corre otro conjunto de revisiones** — porque casi todas las de arriba no significan nada para una carpeta de HTML, y dos de ellas disparaban como críticos *falsos* y bloqueaban el deploy. Lo que corre en su lugar:
+
+- **Que la página principal se llame `index.html`** — los hosts sirven ese nombre en `/`, así que `mi-pagina.html` da 404 en la raíz del sitio. Crítico.
+- **Mayúsculas en los nombres de archivo.** `<img src="imagenes/foto.png">` cuando el archivo es `Imagenes/Foto.PNG` carga en tu Mac —su sistema de archivos ignora mayúsculas— y da 404 en cualquier host, porque todos corren Linux. Las imágenes desaparecen y ningún log explica por qué. Crítico, y la razón de que este check exista: resuelve cada referencia contra un índice de los nombres reales en disco, no con `Path.exists()`, que en macOS devuelve `True` con la ortografía equivocada y dejaría el check inútil justo para quien lo necesita.
+- **Rutas que apuntan a tu propia computadora** — `file:///Users/...`, `C:\Users\...`. Crítico.
+- **Un `.env` dentro de la carpeta que vas a subir** — quedaría descargable en `/.env` apenas el sitio esté en vivo. Crítico.
+- **Credenciales en archivos que se sirven.** Que el repo sea privado no ayuda: un host estático sirve lo que le des. Las llaves publicables (Stripe `pk_`, Google Maps con restricción de referrer) están *diseñadas* para ser públicas y solo avisan — bloquearlas te enseñaría a ignorar el audit.
+- **`.nojekyll`** cuando el target es GitHub Pages y hay una carpeta que empieza con `_`, que si no hace que cada hoja de estilos dé 404 en silencio.
+- **Avisos:** referencias rotas, imágenes pesadas, tamaño total del sitio, y que falte el `<title>` / descripción / Open Graph — sin eso, compartir el link por WhatsApp muestra una tarjeta en blanco que se ve rota.
+
 **El historial de git lo escaneas tú, aparte.** El skill te muestra el comando — `trufflehog git file://.` — en vez de correrlo en silencio, y nunca reescribe tu historial. Sacar un secreto de commits pasados es una decisión con consecuencias para todo el que haya clonado el repo; no es algo que una herramienta de deploy deba hacer por ti.
 
 ### Qué detecta
@@ -330,6 +378,8 @@ Cuando algo falla, primero ves el arreglo como diff y lo apruebas antes de que s
 | Config existente | `vercel.json`, `railway.toml`, `fly.toml`, `Dockerfile`, `render.yaml` — se respetan y auditan, nunca se regeneran en silencio |
 | Proyecto ya vinculado | `.vercel/project.json`, campo `project` en `railway.toml` — re-despliega al mismo proyecto en vez de crear uno nuevo |
 
+Para una página estática detecta el campo que más importa: el **directorio de publicación**, la carpeta que realmente contiene `index.html` — `.` para una página plana, `dist/` para Astro o Vite, `public/` para Hugo, `_site/` para Jekyll o Eleventy, `site/` para MkDocs, `build/` para Docusaurus, `out/` para un export de Next. Equivocarlo es la causa más común de un sitio que despliega "bien" y da 404 en `/`.
+
 Dos casos donde se detiene y pregunta en vez de adivinar:
 
 - **Monorepos** (`pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `lerna.json`, `workspaces`) — enumera los paquetes y te pregunta cuál.
@@ -339,12 +389,26 @@ Dos casos donde se detiene y pregunta en vez de adivinar:
 
 | Target | Ideal para | Cómo se revierte |
 |---|---|---|
+| **Cloudflare Pages** | Páginas estáticas — la opción por defecto cuando a alguien le están pagando | Solo dashboard; no hay rollback por CLI y el skill te lo dice |
+| **Netlify** | Páginas estáticas que necesitan formulario de contacto; arrastrar y soltar | Publicar un deploy anterior desde el dashboard, al instante |
+| **GitHub Pages** | Portafolios, docs y demos que ya están en GitHub | `git revert` y push |
+| **Render** | Páginas estáticas con poco tráfico | Dashboard, solo los dos últimos deploys |
 | **Vercel** | Next.js, Vite, Astro, Remix, Nuxt, SvelteKit, sitios estáticos | `vercel rollback` |
 | **Railway** | FastAPI, Flask, Express, workers de Python, agentes, servidores MCP HTTP | Re-desplegar un commit anterior — Railway no tiene rollback de primera clase, y el skill te lo dice en vez de fingir |
 | **Docker + SSH VPS** | Self-hosted, apps con estado, stacks `docker compose` multi-servicio | Re-taggear y reiniciar la imagen anterior |
 | **cloudflared tunnel** | Exponer dev local, demos rápidas, pruebas de webhook | Cerrar el túnel |
 
-Vienen más targets (Netlify, Fly, Modal, Cloudflare Pages) — [abre un issue](https://github.com/Hainrixz/all-deploy/issues) para votar por el tuyo.
+#### La pregunta del hosting gratis que nadie hace
+
+Antes de ordenar los hosts estáticos, el skill pregunta una sola cosa: **¿a alguien le están pagando por esta página?**
+
+Importa más que cualquier comparación técnica, porque dos de los cinco planes gratis restringen el uso comercial y uno lo define mucho más amplio de lo que la gente espera. Las Fair Use Guidelines de Vercel cuentan como uso comercial *"recibir pago por crear, actualizar u hospedar el sitio"* — así que la página de folleto de un cliente queda fuera aunque no venda nada, no tenga anuncios y no cobre. GitHub Pages prohíbe los sitios *"dirigidos principalmente a facilitar transacciones comerciales"*. Cloudflare Pages, Netlify y Render no tienen esa restricción.
+
+Dos cosas más que conviene saber antes de elegir, las dos en [`references/static-hosting.md`](references/static-hosting.md) con los términos citados: el plan gratis de Netlify es un **presupuesto de 300 créditos al mes** —un deploy a producción cuesta 15, y al agotarse el sitio queda *pausado* con una página de "Site not available"— y el ancho de banda estático gratis de Render ahora es de **5 GB/mes**, contra los 100 GB de antes.
+
+El hosting es gratis en los cinco. **El dominio nunca lo es** — unos $10–15 USD al año, y ninguno lo incluye. [`references/custom-domain.md`](references/custom-domain.md) trae los registros DNS de cada host.
+
+Vienen más targets (Fly, Modal, Hugging Face Spaces) — [abre un issue](https://github.com/Hainrixz/all-deploy/issues) para votar por el tuyo.
 
 ### Correrlo local en vez de desplegar
 
@@ -398,7 +462,8 @@ ALLOW_DIRTY_TREE: false           # true → omite la revisión de HEAD limpio
 
 - **macOS o Linux.** En Windows, instala bajo WSL2.
 - **Git** y **Python 3.8+**.
-- **El CLI del target que elijas** — Vercel, Railway, `cloudflared`, o SSH + Docker. El skill te dice exactamente cuál falta y cómo instalarlo, y espera.
+- **El CLI del target que elijas** — Vercel, Railway, Wrangler, Netlify, `gh`, `cloudflared`, o SSH + Docker. El skill te dice exactamente cuál falta y cómo instalarlo, y espera.
+- **Para una página estática no hace falta ningún CLI.** Todos los targets estáticos menos Render tienen un camino completo por navegador, y el skill lo ofrece por defecto cuando el CLI no está instalado.
 - **Claude Code** — CLI, desktop, web, o una extensión de IDE.
 
 ### Qué NO hace a propósito
@@ -417,21 +482,26 @@ Ser claro con los límites también es parte de la seguridad:
 SKILL.md                    El skill — reglas, fases, flujo
 scripts/audit.py            El audit determinista pre-deploy
 scripts/env_extract.py      Escanea el código buscando uso de variables de entorno
+scripts/static_check.py     Las revisiones de sitio estático; también corre sola
 references/
   project-types.md          Tabla de fingerprints de frameworks
   audit-checklist.md        Cada regla del audit, con guía de arreglo
   env-mapping.md            Cómo viajan las variables a cada target
   agents.md                 Ajustes para cuatro formas de agente
+  static-sites.md           La clase estática y cómo cambia cada fase
+  static-hosting.md         Cinco hosts gratis comparados, con sus términos
+  custom-domain.md          Registros DNS por host, apex vs www
   targets/*.md              Un playbook por target
+cowork-plugin/              publish-website — la skill compañera, sin terminal
 assets/templates/           Dockerfiles, compose y plantillas de .env.example
-tests/                      Suite de 15 tests, corre en cada push a main y en cada PR
+tests/                      Suite de 35 tests, corre en cada push a main y en cada PR
 ```
 
 ### Contribuir
 
 Issues y pull requests son bienvenidos. Buenas primeras contribuciones:
 
-- **Agregar un target** en `references/targets/` — Netlify, Fly, Modal, Cloudflare Pages, Render.
+- **Agregar un target** en `references/targets/` — Fly, Modal, Hugging Face Spaces, Deno Deploy, Surge.
 - **Extender el audit** — nuevos patrones de secretos o revisiones en `scripts/audit.py`.
 - **Mejorar la detección** en `references/project-types.md`.
 

@@ -10,7 +10,7 @@ Map project files and markers to framework classification and a ranked target li
 | `app/` dir + `package.json` with `next` dep | Next.js (App Router) | Vercel | Railway | |
 | `pages/` dir + `package.json` with `next` dep | Next.js (Pages Router) | Vercel | Railway | |
 | `vite.config.js` / `vite.config.ts` | Vite (SPA) | Vercel | cloudflared (dev) | Build outputs to `dist/`. |
-| `astro.config.mjs` / `astro.config.ts` | Astro | Vercel | — | Supports SSR via Vercel adapter. |
+| `astro.config.mjs` / `astro.config.ts` | Astro | Vercel | Cloudflare Pages | SSR via Vercel adapter. Static output (`dist/`) deploys anywhere. |
 | `remix.config.js` + `@remix-run/*` | Remix | Vercel | Railway | |
 | `nuxt.config.ts` | Nuxt | Vercel | Railway | |
 | `svelte.config.js` + `@sveltejs/kit` | SvelteKit | Vercel | Railway | |
@@ -22,7 +22,14 @@ Map project files and markers to framework classification and a ranked target li
 | `docker-compose.yml` (multi-service) | Compose stack | Docker+SSH | — | Railway does not deploy compose files directly. |
 | `mcp.json` or package `mcp`-related deps | MCP server | see `agents.md` | — | stdio vs HTTP mode — see agents reference. |
 | `claude-agent-sdk` or `@anthropic-ai/sdk` usage + long loop | Agent loop | Railway (worker) | Docker+SSH | See `agents.md`. |
-| Static `index.html` at root, no framework | Static site | Vercel | cloudflared | |
+| `index.html` at root, no manifest of any kind | **Static, plain** | Cloudflare Pages | Netlify | Publish dir `.`, build command **empty**. No git repo needed — see `static-sites.md` |
+| HTML file at root named something else (`inicio.html`, `home.html`) | **Static, plain** | Cloudflare Pages | Netlify | Still a website. The audit flags the name: hosts serve `index.html` exactly, so `/` 404s |
+| `config.toml` / `hugo.toml` + `content/` | Static, build (Hugo) | Cloudflare Pages | Netlify | Build `hugo`, publish `public/` |
+| `_config.yml` + `_posts/` | Static, build (Jekyll) | GitHub Pages | Cloudflare Pages | Build `jekyll build`, publish `_site/`. GitHub Pages builds Jekyll natively |
+| `.eleventy.js` / `eleventy.config.js` | Static, build (Eleventy) | Cloudflare Pages | Netlify | Build `npx @11ty/eleventy`, publish `_site/` |
+| `mkdocs.yml` | Static, build (MkDocs) | Cloudflare Pages | GitHub Pages | Build `mkdocs build`, publish `site/` |
+| `docusaurus.config.js` | Static, build (Docusaurus) | Cloudflare Pages | Netlify | Build `npm run build`, publish `build/` |
+| `next.config.*` with `output: 'export'` | Static, build (Next export) | Cloudflare Pages | Vercel | Publish `out/`. No SSR — it's a folder of files |
 | `pyproject.toml` with `[project.scripts]`/`console_scripts` AND no HTTP framework import (`fastapi`, `flask`, `uvicorn`, `gunicorn`) | Python library / CLI | **exit** | — | Not a web deploy — direct user to PyPI publish. Do **not** use `[build-system]` as a signal; it's required by PEP 517 for nearly every Python project including web apps. |
 | `package.json` with `bin:` present OR (`files:` array + no `scripts.start` + no HTTP framework import like `express`/`fastify`/`next`/`hono`) | Node library / CLI | **exit** | — | Not a web deploy — direct user to npm publish. Do **not** use `main:` alone; almost every Node web app sets `main:` too. |
 
@@ -99,7 +106,11 @@ Creating a fresh project when one is already linked duplicates infrastructure an
 
 | Has | Top candidate | Second |
 |---|---|---|
-| `next.config.*` / `vite.config.*` / `astro.config.*` / static | Vercel | — |
+| Static site, **and anyone is being paid** for it | Cloudflare Pages | Netlify |
+| Static site needing a contact form, no backend | Netlify | Cloudflare Pages + Formspree |
+| Static site, personal, already on GitHub | GitHub Pages | Cloudflare Pages |
+| Static site, one-time, no git repo | Netlify Drop | Cloudflare Pages (direct upload) |
+| `next.config.*` / `vite.config.*` / `astro.config.*`, personal project | Vercel | Cloudflare Pages |
 | FastAPI / Flask / Express (long-running) | Railway | Docker+SSH |
 | `Dockerfile` + `docker-compose.yml` | Docker+SSH | Railway (if single service) |
 | MCP server | see `agents.md` | — |
@@ -107,3 +118,5 @@ Creating a fresh project when one is already linked duplicates infrastructure an
 | Local dev, wants quick public URL | cloudflared tunnel | — |
 
 If two targets tie, present both with a one-line rationale and let the user pick.
+
+**For any static row, read `references/static-hosting.md` before ranking.** The deciding question is *"is anyone being paid in connection with this page?"* — a yes removes Vercel Hobby, whose Fair Use terms count *"receiving payment to create, update, or host the site"* as commercial usage, and usually GitHub Pages too. That single question reorders the list more than any technical signal does.

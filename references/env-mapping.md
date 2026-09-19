@@ -120,6 +120,35 @@ ssh user@host 'cd /app && docker compose exec app env | grep -v ^_'
 
 Local server → public URL. Env vars stay **local** — cloudflared is just a tunnel, there is no remote environment to push to. The server reads `process.env.X` from the current shell (your machine's `.env` loaded via `dotenv` or the framework's equivalent).
 
+## Static hosts — Cloudflare Pages, Netlify, GitHub Pages, Render, Vercel static
+
+**There is nothing to push, and offering to push something is actively harmful.**
+
+A static host serves the publish directory to anyone who asks. Nothing runs on the server. A "build-time environment variable" — `VITE_*`, `PUBLIC_*`, `NEXT_PUBLIC_*`, `GATSBY_*` — is **substituted into the JavaScript bundle during the build** and shipped as a literal string in a file. It is not fetched at runtime from a secret store; there is no runtime. A private repo changes nothing, because the repo is not what's being served.
+
+So: **never say "set it as an environment variable so it stays secret."** On a static site that sentence is false, and the person hearing it has no way to know.
+
+Two things that legitimately belong in shipped static files:
+
+| Kind | Example | What actually protects it |
+|---|---|---|
+| Publishable by design | Stripe `pk_live_…` | Nothing needs to — it can only create, not charge |
+| Restricted by origin | Google Maps `AIza…` | An HTTP-referrer restriction **you must set** in Google Cloud Console |
+| Public configuration | Analytics ID, public API base URL | Nothing. It's public and that's fine |
+
+Ship those, and say out loud that they are public. `static_check.py` flags them as a **warning**, not a critical, for exactly this reason — blocking a correctly-built site would train people to ignore the audit.
+
+Anything else — a database URL, an OpenAI or Anthropic key, a Stripe `sk_`, an SMTP password — cannot go in a static site at all. Say that plainly and move to the app pipeline.
+
+The one exception on this list: **Cloudflare Pages Functions** and **Netlify Functions** do run server-side and take real secrets.
+
+```bash
+npx wrangler pages secret put <KEY> --project-name <PROJECT>   # Cloudflare Pages Functions
+netlify env:set <KEY> <value>                                  # Netlify Functions
+```
+
+Those are server code living next to a static site, not the static site itself.
+
 ## Summary table
 
 | Target | Where vars live | How to push | How to verify |
@@ -128,13 +157,23 @@ Local server → public URL. Env vars stay **local** — cloudflared is just a t
 | Railway | Per-service, per-environment | `railway variables --set KEY=value` | `railway variables` |
 | Docker+SSH | `.env` file on host + compose `environment:` | `scp .env.production host:/app/.env` | `docker compose config` |
 | cloudflared | Local shell only | N/A — local | `env \| grep YOUR_KEY` |
+| Cloudflare Pages | Nothing for static. Functions only | `wrangler pages secret put KEY` | `wrangler pages secret list` |
+| Netlify | Nothing for static. Functions only | `netlify env:set KEY value` | `netlify env:list` |
+| GitHub Pages | **Nothing.** No server at all | N/A | N/A |
+| Render (static) | Build-time only, and public | Dashboard / `render.yaml` | Dashboard |
 
-## Build-time vs runtime (Vercel-specific)
+## Build-time vs runtime — the distinction that actually matters
 
-- **Build-time:** reads at `vercel build`. Needed for `NEXT_PUBLIC_*`, `VITE_*`, any env referenced during static generation.
-- **Runtime:** available in server functions and edge functions at request time.
+This is the one piece of env-var knowledge worth getting exactly right, because getting it wrong leaks credentials in a way that looks fine in the dashboard.
 
-When in doubt, set the var for both `preview` and `production` environments. Vercel applies build-time vars to both.
+- **Runtime** — read by server code at request time. Lives in the host's secret store, never reaches the browser. Genuinely secret.
+- **Build-time** — substituted into the output during the build. Ends up as a literal string inside a JavaScript file that ships to every visitor. **Not secret, no matter where you typed it.**
+
+Any variable whose name starts with `NEXT_PUBLIC_`, `VITE_`, `PUBLIC_`, `GATSBY_` or `REACT_APP_` is build-time by convention — the prefix exists specifically to mark "this will be public." Frameworks use the prefix as the opt-in precisely because the alternative is leaking by accident.
+
+A **fully static site has no runtime at all**, so every variable is build-time and every variable is public. See the static-hosts section above.
+
+**Vercel specifics:** build-time vars are read at `vercel build` and apply to both `preview` and `production`; runtime vars are available in server and edge functions at request time. When in doubt, set the var for both environments.
 
 ## Redaction rules
 

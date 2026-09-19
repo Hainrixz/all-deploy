@@ -6,6 +6,15 @@ Severity levels:
 - **critical** — blocks the deploy. Must be resolved (or audit flag added) before Phase 4.
 - **warn** — surfaced but does not block. Fix when convenient.
 
+## Profiles
+
+`audit.py` runs one of two profiles, resolved by `--profile` (default `auto`).
+
+- **`app`** — everything documented below. A service with a runtime, a start command and a port.
+- **`static`** — a website. Every check that assumes a dependency tree, a start command, a port or a git remote is **off**, because each one emits a false critical on a plain folder of HTML. `check_secrets` still runs. `git.remote.missing` runs only with `--target github-pages`. In its place, `scripts/static_check.py` contributes 14 checks of its own — **documented in `references/static-sites.md`**, not here, so this file stays about the app pipeline.
+
+Checks below are marked *(app only)* where the static profile skips them.
+
 ---
 
 ## Secret checks
@@ -47,15 +56,15 @@ Allowed env files: `.env.example`, `.env.sample`, `.env.vault` (dotenv-vault enc
 
 ## Git-hygiene checks
 
-### `gitignore.missing` (critical)
+### `gitignore.missing` (critical, app only)
 
 `.gitignore` does not exist. Even if the repo is currently clean, future commits will leak. Create one covering `.env`, `node_modules`, `__pycache__`, `dist`, `.next`, `.venv`, `.vercel`.
 
-### `gitignore.incomplete` (warn, one per missing entry)
+### `gitignore.incomplete` (warn, one per missing entry, app only)
 
 `.gitignore` exists but omits a recommended entry. Append the entries listed in the finding.
 
-### `git.dirty` (critical)
+### `git.dirty` (critical, app only)
 
 Tracked files have uncommitted changes (detected via `git diff-index --quiet HEAD --`, which correctly ignores untracked files). Deploying from a dirty tree makes rollback harder — if prod breaks and you `git checkout HEAD~1`, the dirty changes are lost.
 
@@ -68,7 +77,7 @@ Tracked files have uncommitted changes (detected via `git diff-index --quiet HEA
 
 Untracked files exist. Not a block — common during iteration — but worth noting. Normal for the recovery flow where the audit has just asked the user to create a new `.env.example`.
 
-### `git.remote.missing` (critical, skippable via `--skip-remote`)
+### `git.remote.missing` (critical, static: only with --target github-pages, skippable via `--skip-remote`)
 
 `git remote -v` returns empty. Cloud deploys expect a remote. Add one with `git remote add origin <url>`. Skip this check for docker-vps deploys that don't use a remote.
 
@@ -76,7 +85,7 @@ Untracked files exist. Not a block — common during iteration — but worth not
 
 ## Lockfile checks
 
-### `lockfile.missing.node` (critical)
+### `lockfile.missing.node` (critical, app only)
 
 `package.json` exists but no lockfile (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, or `bun.lockb`). Installs on the remote will pull non-reproducible versions — deploy-time builds may succeed locally and fail in prod.
 
@@ -92,7 +101,7 @@ Python project (`pyproject.toml` or `Pipfile`) exists but no lockfile. Pinned `r
 
 ## Env-var completeness
 
-### `env.example.missing` (critical)
+### `env.example.missing` (critical, app only)
 
 Code reads env vars (detected by `scripts/env_extract.py`), but neither `.env.example` nor `.env.sample` exists. New contributors can't configure the project, and there's no manifest for which vars to set on the remote.
 
@@ -149,7 +158,7 @@ Neither `.python-version` nor `requires-python` in `pyproject.toml`.
 
 ## Runtime binding
 
-### `port-binding.localhost-only` (warn)
+### `port-binding.localhost-only` (warn, app only)
 
 Source binds `localhost` / `127.0.0.1` without any `0.0.0.0` binding. Works locally; fails on Railway, Fly, and any Docker container.
 

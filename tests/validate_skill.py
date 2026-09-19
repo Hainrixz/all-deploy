@@ -20,18 +20,32 @@ from pathlib import Path
 
 EXPECTED_NAME = "all-deploy"
 
+# Claude Code truncates a skill description past this. The validator enforces
+# it because a silently-truncated description loses its trigger phrases and
+# the skill just stops firing, with nothing to see in CI.
+DESCRIPTION_MAX = 1024
+DESCRIPTION_WARN = 950
+
 REQUIRED_FILES = [
     "SKILL.md",
     "scripts/audit.py",
     "scripts/env_extract.py",
+    "scripts/static_check.py",
     "references/project-types.md",
     "references/audit-checklist.md",
     "references/env-mapping.md",
     "references/agents.md",
+    "references/static-sites.md",
+    "references/static-hosting.md",
+    "references/custom-domain.md",
     "references/targets/vercel.md",
     "references/targets/railway.md",
     "references/targets/docker-vps.md",
     "references/targets/cloudflared-tunnel.md",
+    "references/targets/cloudflare-pages.md",
+    "references/targets/netlify.md",
+    "references/targets/github-pages.md",
+    "references/targets/render.md",
     "assets/templates/Dockerfile.node",
     "assets/templates/Dockerfile.python",
     "assets/templates/docker-compose.example.yml",
@@ -108,6 +122,17 @@ def main() -> int:
         errors.append(
             f"description is too short ({len(fm['description'])} chars) — "
             "include trigger cues for the skill router"
+        )
+    elif len(fm["description"]) > DESCRIPTION_MAX:
+        errors.append(
+            f"description is {len(fm['description'])} chars — Claude Code caps it "
+            f"at {DESCRIPTION_MAX}. Trim it, don't let it silently truncate."
+        )
+    elif len(fm["description"]) > DESCRIPTION_WARN:
+        print(
+            f"WARN: description is {len(fm['description'])} chars, close to the "
+            f"{DESCRIPTION_MAX} cap. Trim before adding more triggers.",
+            file=sys.stderr,
         )
 
     for rel in REQUIRED_FILES:

@@ -2,6 +2,8 @@
 
 Best for Next.js, Vite, Astro, Remix, Nuxt, SvelteKit, and most static sites. Zero-config for framework projects, preview URLs for every deploy.
 
+> **Check the commercial restriction before choosing Hobby, because it is broader than almost anyone expects.** Vercel's Fair Use Guidelines: *"Commercial usage is defined as any Deployment that is used for the purpose of financial gain of **anyone** involved in **any part of the production** of the project, including a paid employee or consultant writing the code."* Listed examples include *"receiving payment to create, update, or host the site"* and *"the inclusion of advertisements."* So a client's brochure site that sells nothing, carries no ads and takes no payments is still commercial usage **if you were paid to build it**. Asking for donations is explicitly not. If money touches this project anywhere, use Cloudflare Pages or move to Pro. Full text: `https://vercel.com/docs/limits/fair-use-guidelines#commercial-usage`
+
 ## Phase 3.5 — prerequisites
 
 ```bash
@@ -62,7 +64,12 @@ Never log the values. Only the keys.
 
 ```bash
 vercel                                # preview deploy — NOT --prod
+vercel --cwd ./public                 # deploy a directory you're not cd'd into
 ```
+
+> **The first deploy of a brand-new project is always production**, even without `--prod`. Vercel's docs are explicit: *"The first deployment of a new project is always a production deployment, even when you omit `--prod`. Use `--prod` for later production deployments after that first one exists."* This conflicts with Hard Rule 2, and the resolution is disclosure, not a silent exception: tell the user before running it that this first one goes live, and get an explicit yes. Every deploy after that behaves normally.
+
+**Plain static, no framework.** Vercel detects it and skips the build: *"Vercel automatically detects eligible static deployments and makes them ready without a build step. This optimization supports deployments containing only HTML (`.html`, `.htm`) or Markdown (`.md`) files, with up to 10 files and a total size of up to 5 MB."* Bigger or mixed static sites still deploy fine — they just take the standard path.
 
 The preview URL prints on the last non-empty stdout line, formatted like `https://<project>-<hash>-<scope>.vercel.app`. Parse it for Phase 4.5.
 
@@ -95,7 +102,7 @@ vercel --prod
 
 Prints the production URL (either the `.vercel.app` URL or the configured custom domain).
 
-Cost note: Vercel's Hobby plan is free for personal, non-commercial use; Pro starts at a monthly fee per member. Check `https://vercel.com/pricing` for current terms.
+Cost note: Hobby is free and **personal, non-commercial use only** — see the note at the top of this file, which is stricter than it sounds. Documented Hobby limits: 100 GB fast data transfer, 1,000,000 edge requests, 1,000,000 function invocations, 200 projects, 50 domains per project, 100 deployments per day, 1-hour runtime-log retention. There is no overage billing — you are cut off: *"if you exceed your usage limits on the Hobby plan, you will have to wait until 30 days have passed before you can use the feature again."* Current terms: `https://vercel.com/pricing`
 
 ## Phase 6 — post-deploy
 
@@ -128,6 +135,9 @@ vercel logs                            # most recent deployment
 - **Team vs personal scope:** `vercel link` can quietly connect to the wrong scope. Verify with `vercel projects ls`.
 - **Monorepo root directory:** if deploying from a subdirectory of a monorepo, set `rootDirectory` in the project's Vercel settings (dashboard) or via `vercel.json`.
 - **Preview URL auth:** Vercel Pro teams can require auth on preview URLs, which breaks the Phase 4.5 curl check. Either disable "Vercel Authentication" for the project, or probe a public endpoint.
+- **The first deploy of a new project is production.** Say so before running it, not after.
+- **Hobby is non-commercial, and "commercial" includes being paid to build it.** This is the most common way people end up in breach without realising. For a client's page, Cloudflare Pages is the free option that doesn't have this problem.
+- **`vercel --yes --prod`** accepts every setup default non-interactively — convenient in CI, dangerous the first time, because it will happily create a project you didn't mean to create.
 
 ## `vercel.json` (when you need it)
 
