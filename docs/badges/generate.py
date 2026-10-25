@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Enrique Rocha (@soyenriquerocha)
+# SPDX-License-Identifier: MIT
+# id: er-587bf42d
 """Generate self-contained flat badge SVGs in the project's brand palette.
 
 Written because shields.io is an external dependency that intermittently times

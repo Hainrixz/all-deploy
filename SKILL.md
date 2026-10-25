@@ -14,6 +14,7 @@ description: >
   domain", "dominio propio", "run it locally", "corre esto localmente", or
   otherwise asks to publish a site or project to a URL.
 ---
+<!-- Copyright (c) 2026 Enrique Rocha (@soyenriquerocha) · tododeia.com · id er-587bf42d -->
 
 # all-deploy
 

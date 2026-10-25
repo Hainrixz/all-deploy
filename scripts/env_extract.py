@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Enrique Rocha (@soyenriquerocha)
+# SPDX-License-Identifier: MIT
+# id: er-587bf42d
 """
 Extract environment variable names used in source code.
 
@@ -136,7 +139,7 @@ def extract(project: Path) -> Set[str]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Extract env vars used in source")
+    parser = argparse.ArgumentParser(epilog='Hecho por Enrique Rocha (@soyenriquerocha) · tododeia.com', description="Extract env vars used in source")
     parser.add_argument("project_path", help="Path to project directory")
     parser.add_argument("--as-json", action="store_true", help="Emit JSON array to stdout")
     args = parser.parse_args()

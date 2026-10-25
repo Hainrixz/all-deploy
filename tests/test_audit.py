@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Enrique Rocha (@soyenriquerocha)
+# SPDX-License-Identifier: MIT
+# id: er-587bf42d
 """
 End-to-end tests for scripts/audit.py against synthetic fixtures.
 

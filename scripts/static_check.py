@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Enrique Rocha (@soyenriquerocha)
+# SPDX-License-Identifier: MIT
+# id: er-587bf42d
 """
 all-deploy static-site checks — what breaks a plain web page once it's online.
 
@@ -639,7 +642,7 @@ def emit(findings: List[Finding], as_json: bool) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="all-deploy static-site checks")
+    parser = argparse.ArgumentParser(epilog='Hecho por Enrique Rocha (@soyenriquerocha) · tododeia.com', description="all-deploy static-site checks")
     parser.add_argument("publish_dir", help="Folder that gets uploaded")
     parser.add_argument("--json", action="store_true", help="Emit JSON report")
     parser.add_argument("--target", default="generic", help="Target host name")

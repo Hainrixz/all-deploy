@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Enrique Rocha (@soyenriquerocha)
+# SPDX-License-Identifier: MIT
+# id: er-587bf42d
 """
 Build the release assets.
 
@@ -88,7 +91,7 @@ def verify_plugin(archive: Path) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build release assets")
+    parser = argparse.ArgumentParser(epilog='Hecho por Enrique Rocha (@soyenriquerocha) · tododeia.com', description="Build release assets")
     parser.add_argument("--out", default=str(REPO / "dist"))
     args = parser.parse_args()
 

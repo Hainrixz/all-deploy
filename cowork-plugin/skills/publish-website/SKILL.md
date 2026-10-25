@@ -14,6 +14,7 @@ description: >
   or has a web page and doesn't know where to put it. For a web app, an API
   or anything with a backend, use /all-deploy instead.
 ---
+<!-- Copyright (c) 2026 Enrique Rocha (@soyenriquerocha) · tododeia.com · id er-587bf42d -->
 
 # publish-website
 

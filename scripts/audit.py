@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Enrique Rocha (@soyenriquerocha)
+# SPDX-License-Identifier: MIT
+# id: er-587bf42d
 """
 all-deploy audit — pre-deploy safety checks.
 
@@ -768,7 +771,7 @@ def emit_report(findings: List[Finding], as_json: bool) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="all-deploy pre-deploy audit")
+    parser = argparse.ArgumentParser(epilog='Hecho por Enrique Rocha (@soyenriquerocha) · tododeia.com', description="all-deploy pre-deploy audit")
     parser.add_argument("project_path", help="Path to project directory")
     parser.add_argument("--json", action="store_true", help="Emit JSON report")
     parser.add_argument("--scoped", action="store_true", help="Run-locally mode")

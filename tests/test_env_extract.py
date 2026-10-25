@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Enrique Rocha (@soyenriquerocha)
+# SPDX-License-Identifier: MIT
+# id: er-587bf42d
 """Tests for scripts/env_extract.py — JS/TS + Python, including destructuring."""
 
 from __future__ import annotations
